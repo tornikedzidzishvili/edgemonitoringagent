@@ -52,24 +52,7 @@ From your local machine:
 ssh -i ~/.ssh/id_ed25519 root@<SERVER_IP>
 ```
 
-### 2) Create the agent env file
-
-On the server (recommended: keep secrets out of shell history by using a heredoc):
-
-```bash
-install -d -m 700 /opt/edgemonitoringagent
-cat >/opt/edgemonitoringagent/agent.env <<'EOF'
-CENTRAL_API_URL=https://monitoring.edge.ge/api
-SERVER_NAME=<friendly-name>
-AGENT_API_KEY=<agent-api-key>
-REPORT_INTERVAL_SECONDS=30
-DOCKER_SOCKET_PATH=/var/run/docker.sock
-EOF
-
-chmod 600 /opt/edgemonitoringagent/agent.env
-```
-
-### 3) Install / update the agent container
+### 2) Install / update the agent container
 
 On the server:
 
@@ -83,6 +66,12 @@ git checkout -f v0.1.1
 
 sudo bash scripts/deploy-ubuntu.sh --tag v0.1.1
 ```
+
+The script will prompt you for:
+- `SERVER_NAME` (a friendly name; spaces are OK)
+- `AGENT_API_KEY`
+
+It will write `/opt/edgemonitoringagent/agent.env` with `CENTRAL_API_URL=https://monitoring.edge.ge/api`.
 
 Logs:
 

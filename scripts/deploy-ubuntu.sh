@@ -9,6 +9,9 @@ CONTAINER_NAME="edgemonitoringagent"
 IMAGE_NAME="edgemonitoringagent"
 DOCKER_SOCK="/var/run/docker.sock"
 
+CENTRAL_API_URL="https://monitoring.edge.ge/api"
+REPORT_INTERVAL_SECONDS_DEFAULT="30"
+
 usage() {
   cat <<'USAGE'
 Usage:
@@ -17,13 +20,14 @@ Usage:
 Options:
   --tag <git-tag>          Git tag to checkout (recommended), e.g. v0.1.1
   --repo-dir <path>        Repo directory (default: /opt/edgemonitoringagent/src)
-  --env-file <path>        Env file path (default: /opt/edgemonitoringagent/agent.env)
+  --env-file <path>        Env file path to write (default: /opt/edgemonitoringagent/agent.env)
   --container <name>       Container name (default: edgemonitoringagent)
 
 Behavior:
   - Builds the Docker image from the repo
   - Recreates ONLY the agent container (no prune, no changes to other containers)
-  - Requires Docker and an existing env file
+  - Requires Docker; prompts for SERVER_NAME + AGENT_API_KEY and writes the env file
+  - Uses CENTRAL_API_URL=https://monitoring.edge.ge/api
 USAGE
 }
 
@@ -61,11 +65,39 @@ command -v docker >/dev/null 2>&1 || { echo "ERROR: docker not found" >&2; exit 
 
 install -d -m 700 "$INSTALL_DIR"
 
-if [[ ! -f "$ENV_FILE" ]]; then
-  echo "ERROR: env file not found: $ENV_FILE" >&2
-  echo "Create it first (see README), then re-run." >&2
+SERVER_NAME=""
+AGENT_API_KEY=""
+REPORT_INTERVAL_SECONDS="$REPORT_INTERVAL_SECONDS_DEFAULT"
+
+printf 'Server name (e.g. "Spacehost Web"): '
+IFS= read -r SERVER_NAME
+if [[ -z "$SERVER_NAME" ]]; then
+  echo "ERROR: server name cannot be empty" >&2
   exit 1
 fi
+
+printf 'Agent API key: '
+IFS= read -r -s AGENT_API_KEY
+echo
+if [[ -z "$AGENT_API_KEY" ]]; then
+  echo "ERROR: agent API key cannot be empty" >&2
+  exit 1
+fi
+
+printf 'Report interval seconds [%s]: ' "$REPORT_INTERVAL_SECONDS_DEFAULT"
+IFS= read -r interval_input
+if [[ -n "$interval_input" ]]; then
+  REPORT_INTERVAL_SECONDS="$interval_input"
+fi
+
+umask 077
+cat >"$ENV_FILE" <<EOF
+CENTRAL_API_URL=$CENTRAL_API_URL
+SERVER_NAME=$SERVER_NAME
+AGENT_API_KEY=$AGENT_API_KEY
+REPORT_INTERVAL_SECONDS=$REPORT_INTERVAL_SECONDS
+DOCKER_SOCKET_PATH=$DOCKER_SOCK
+EOF
 
 chmod 600 "$ENV_FILE" || true
 
