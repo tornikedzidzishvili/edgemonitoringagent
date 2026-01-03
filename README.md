@@ -40,6 +40,69 @@ Logs:
 docker logs -f edgemonitoringagent
 ```
 
+## Deploy to a new Ubuntu server (safe)
+
+These steps only create/update a single container named `edgemonitoringagent` and a single folder under `/opt/edgemonitoringagent`. They do not prune images/volumes and do not touch other containers.
+
+### 1) SSH into the server
+
+From your local machine:
+
+```bash
+ssh -i ~/.ssh/id_ed25519 root@<SERVER_IP>
+```
+
+### 2) Create the agent env file
+
+On the server (recommended: keep secrets out of shell history by using a heredoc):
+
+```bash
+install -d -m 700 /opt/edgemonitoringagent
+cat >/opt/edgemonitoringagent/agent.env <<'EOF'
+CENTRAL_API_URL=https://monitoring.edge.ge/api
+SERVER_NAME=<friendly-name>
+AGENT_API_KEY=<agent-api-key>
+REPORT_INTERVAL_SECONDS=30
+DOCKER_SOCKET_PATH=/var/run/docker.sock
+EOF
+
+chmod 600 /opt/edgemonitoringagent/agent.env
+```
+
+### 3) Install / update the agent container
+
+On the server:
+
+```bash
+git clone https://github.com/tornikedzidzishvili/edgemonitoringagent.git /opt/edgemonitoringagent/src
+cd /opt/edgemonitoringagent/src
+
+# Pick a tag (recommended) or use main
+git fetch --tags origin
+git checkout -f v0.1.1
+
+sudo bash scripts/deploy-ubuntu.sh --tag v0.1.1
+```
+
+Logs:
+
+```bash
+docker logs -f edgemonitoringagent
+```
+
+### Changing `agent.env`
+
+If you edit `/opt/edgemonitoringagent/agent.env`, you must recreate the container for changes to take effect (restart is not enough):
+
+```bash
+docker rm -f edgemonitoringagent
+docker run -d --name edgemonitoringagent \
+  --restart unless-stopped \
+  --env-file /opt/edgemonitoringagent/agent.env \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  edgemonitoringagent:v0.1.1
+```
+
 ## Run (Node)
 Requires Node.js 20+.
 
