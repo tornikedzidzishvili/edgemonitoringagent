@@ -111,60 +111,68 @@ function computeBlock(stats: DockerStats): { read?: number; write?: number } {
 }
 
 export async function collectSnapshot(dockerSocketPath: string): Promise<AgentPayload> {
-  const docker = new Docker({ socketPath: dockerSocketPath });
-
-  const [osInfo, currentLoad, mem, fsSize, dockerContainers] = await Promise.all([
+  const [osInfo, currentLoad, mem, fsSize] = await Promise.all([
     si.osInfo(),
     si.currentLoad(),
     si.mem(),
-    si.fsSize(),
-    docker.listContainers({ all: true })
+    si.fsSize()
   ]);
 
-  const containers = (dockerContainers as ContainerInfo[]).map((c) => ({
-    id: c.Id,
-    name: Array.isArray(c.Names) && c.Names.length ? c.Names[0].replace(/^\//, "") : c.Id.slice(0, 12),
-    image: c.Image,
-    state: c.State,
-    status: c.Status,
-    created: c.Created,
-    ports: (c.Ports ?? []).map((p) => {
-      const hp = p.PublicPort ? `${p.IP ?? "0.0.0.0"}:${p.PublicPort}` : "";
-      const cp = `${p.PrivatePort}/${p.Type}`;
-      return hp ? `${hp} -> ${cp}` : cp;
-    })
-  }));
+  const docker = new Docker({ socketPath: dockerSocketPath });
+  let containers: AgentPayload["docker"]["containers"] = [];
+  let dockerError: string | undefined;
+
+  try {
+    const dockerContainers = (await docker.listContainers({ all: true })) as ContainerInfo[];
+    containers = dockerContainers.map((c) => ({
+      id: c.Id,
+      name: Array.isArray(c.Names) && c.Names.length ? c.Names[0].replace(/^\//, "") : c.Id.slice(0, 12),
+      image: c.Image,
+      state: c.State,
+      status: c.Status,
+      created: c.Created,
+      ports: (c.Ports ?? []).map((p) => {
+        const hp = p.PublicPort ? `${p.IP ?? "0.0.0.0"}:${p.PublicPort}` : "";
+        const cp = `${p.PrivatePort}/${p.Type}`;
+        return hp ? `${hp} -> ${cp}` : cp;
+      })
+    }));
+  } catch (e) {
+    dockerError = e instanceof Error ? e.message : "docker-list-failed";
+  }
 
   let dockerStats: AgentPayload["docker"]["stats"] = undefined;
-  let dockerError: string | undefined;
-  try {
-    dockerStats = await Promise.all(
-      containers.map(async (c) => {
-        try {
-          const s = await docker.getContainer(c.id).stats({ stream: false });
-          const cpuPercent = computeCpuPercent(s);
-          const mem = computeMem(s);
-          const net = computeNet(s);
-          const blk = computeBlock(s);
-          return {
-            id: c.id,
-            name: c.name,
-            cpuPercent,
-            memUsageBytes: mem.usage,
-            memLimitBytes: mem.limit,
-            memPercent: mem.percent,
-            netRxBytes: net.rx,
-            netTxBytes: net.tx,
-            blockReadBytes: blk.read,
-            blockWriteBytes: blk.write
-          };
-        } catch (e) {
-          return { id: c.id, name: c.name };
-        }
-      })
-    );
-  } catch (e) {
-    dockerError = e instanceof Error ? e.message : "docker-stats-failed";
+  if (containers.length > 0) {
+    try {
+      dockerStats = await Promise.all(
+        containers.map(async (c) => {
+          try {
+            const s = await docker.getContainer(c.id).stats({ stream: false });
+            const cpuPercent = computeCpuPercent(s);
+            const mem = computeMem(s);
+            const net = computeNet(s);
+            const blk = computeBlock(s);
+            return {
+              id: c.id,
+              name: c.name,
+              cpuPercent,
+              memUsageBytes: mem.usage,
+              memLimitBytes: mem.limit,
+              memPercent: mem.percent,
+              netRxBytes: net.rx,
+              netTxBytes: net.tx,
+              blockReadBytes: blk.read,
+              blockWriteBytes: blk.write
+            };
+          } catch (e) {
+            return { id: c.id, name: c.name };
+          }
+        })
+      );
+    } catch (e) {
+      const statsError = e instanceof Error ? e.message : "docker-stats-failed";
+      dockerError = dockerError ? `${dockerError}; ${statsError}` : statsError;
+    }
   }
 
   return {
