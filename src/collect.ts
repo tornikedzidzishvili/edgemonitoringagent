@@ -17,6 +17,18 @@ export type AgentPayload = {
       cpuPercent?: number;
       memPercent?: number;
     }>;
+    processesTopCpu?: Array<{
+      pid: number;
+      name: string;
+      cpuPercent?: number;
+      memPercent?: number;
+    }>;
+    processesTopMem?: Array<{
+      pid: number;
+      name: string;
+      cpuPercent?: number;
+      memPercent?: number;
+    }>;
     cpu: {
       load: number;
     };
@@ -132,10 +144,12 @@ export async function collectSnapshot(dockerSocketPath: string): Promise<AgentPa
   ]);
 
   let processesTop: AgentPayload["system"]["processesTop"] = undefined;
+  let processesTopCpu: AgentPayload["system"]["processesTopCpu"] = undefined;
+  let processesTopMem: AgentPayload["system"]["processesTopMem"] = undefined;
   try {
     const procs = await si.processes();
     const list = Array.isArray((procs as any)?.list) ? ((procs as any).list as any[]) : [];
-    processesTop = list
+    const normalized = list
       .map((p) => {
         const pid = safeInt(p?.pid);
         const name = typeof p?.name === "string" ? p.name : "";
@@ -147,7 +161,10 @@ export async function collectSnapshot(dockerSocketPath: string): Promise<AgentPa
           memPercent: safeNumber(p?.mem)
         };
       })
-      .filter((v): v is NonNullable<typeof v> => Boolean(v))
+      .filter((v): v is NonNullable<typeof v> => Boolean(v));
+
+    // Backward-compatible field: CPU-first, memory tie-breaker
+    processesTop = [...normalized]
       .sort((a, b) => {
         const cpuA = a.cpuPercent ?? 0;
         const cpuB = b.cpuPercent ?? 0;
@@ -157,8 +174,19 @@ export async function collectSnapshot(dockerSocketPath: string): Promise<AgentPa
         return memB - memA;
       })
       .slice(0, 5);
+
+    // Explicit fields
+    processesTopCpu = [...normalized]
+      .sort((a, b) => (b.cpuPercent ?? 0) - (a.cpuPercent ?? 0))
+      .slice(0, 5);
+
+    processesTopMem = [...normalized]
+      .sort((a, b) => (b.memPercent ?? 0) - (a.memPercent ?? 0))
+      .slice(0, 5);
   } catch {
     processesTop = undefined;
+    processesTopCpu = undefined;
+    processesTopMem = undefined;
   }
 
   const docker = new Docker({ socketPath: dockerSocketPath });
@@ -229,6 +257,8 @@ export async function collectSnapshot(dockerSocketPath: string): Promise<AgentPa
         arch: osInfo.arch
       },
       processesTop,
+      processesTopCpu,
+      processesTopMem,
       cpu: {
         load: currentLoad.currentLoad
       },
