@@ -1,11 +1,11 @@
 import { z } from "zod";
 
 const envSchema = z.object({
-  CENTRAL_API_URL: z.string().url(),
-  SERVER_NAME: z.string().min(1),
-  AGENT_API_KEY: z.string().min(1),
+  CENTRAL_API_URL: z.string().trim().url(),
+  SERVER_NAME: z.string().trim().min(1),
+  AGENT_API_KEY: z.string().trim().min(1),
   REPORT_INTERVAL_SECONDS: z.coerce.number().int().positive().default(30),
-  DOCKER_SOCKET_PATH: z.string().min(1).default("/var/run/docker.sock")
+  DOCKER_SOCKET_PATH: z.string().trim().min(1).default("/var/run/docker.sock")
 });
 
 export type AgentEnv = z.infer<typeof envSchema>;
