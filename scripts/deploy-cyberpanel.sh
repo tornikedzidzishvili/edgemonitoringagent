@@ -128,10 +128,17 @@ git fetch --tags origin >/dev/null 2>&1 || true
 git checkout -f "$TAG"
 
 echo "Installing dependencies..."
-npm ci --omit=dev || npm install --omit=dev
+if [[ -f package-lock.json || -f npm-shrinkwrap.json ]]; then
+  npm ci
+else
+  npm install
+fi
 
 echo "Building..."
 npm run build
+
+# Optional: keep runtime smaller by removing dev deps after building.
+npm prune --omit=dev >/dev/null 2>&1 || true
 
 # Create systemd service
 cat >/etc/systemd/system/${SERVICE_NAME}.service <<EOF
