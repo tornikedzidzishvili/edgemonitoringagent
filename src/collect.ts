@@ -11,6 +11,12 @@ export type AgentPayload = {
       release?: string;
       arch: string;
     };
+    processesTop?: Array<{
+      pid: number;
+      name: string;
+      cpuPercent?: number;
+      memPercent?: number;
+    }>;
     cpu: {
       load: number;
     };
@@ -51,6 +57,13 @@ type DockerStats = any;
 
 function safeNumber(v: unknown): number | undefined {
   return typeof v === "number" && Number.isFinite(v) ? v : undefined;
+}
+
+function safeInt(v: unknown): number | undefined {
+  const n = safeNumber(v);
+  if (n === undefined) return undefined;
+  const i = Math.trunc(n);
+  return Number.isFinite(i) ? i : undefined;
 }
 
 function computeCpuPercent(stats: DockerStats): number | undefined {
@@ -117,6 +130,36 @@ export async function collectSnapshot(dockerSocketPath: string): Promise<AgentPa
     si.mem(),
     si.fsSize()
   ]);
+
+  let processesTop: AgentPayload["system"]["processesTop"] = undefined;
+  try {
+    const procs = await si.processes();
+    const list = Array.isArray((procs as any)?.list) ? ((procs as any).list as any[]) : [];
+    processesTop = list
+      .map((p) => {
+        const pid = safeInt(p?.pid);
+        const name = typeof p?.name === "string" ? p.name : "";
+        if (pid === undefined || name.length === 0) return undefined;
+        return {
+          pid,
+          name,
+          cpuPercent: safeNumber(p?.cpu),
+          memPercent: safeNumber(p?.mem)
+        };
+      })
+      .filter((v): v is NonNullable<typeof v> => Boolean(v))
+      .sort((a, b) => {
+        const cpuA = a.cpuPercent ?? 0;
+        const cpuB = b.cpuPercent ?? 0;
+        if (cpuB !== cpuA) return cpuB - cpuA;
+        const memA = a.memPercent ?? 0;
+        const memB = b.memPercent ?? 0;
+        return memB - memA;
+      })
+      .slice(0, 5);
+  } catch {
+    processesTop = undefined;
+  }
 
   const docker = new Docker({ socketPath: dockerSocketPath });
   let containers: AgentPayload["docker"]["containers"] = [];
@@ -185,6 +228,7 @@ export async function collectSnapshot(dockerSocketPath: string): Promise<AgentPa
         release: osInfo.release,
         arch: osInfo.arch
       },
+      processesTop,
       cpu: {
         load: currentLoad.currentLoad
       },
