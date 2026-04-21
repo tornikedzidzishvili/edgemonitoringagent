@@ -1,28 +1,29 @@
 {
   "name": "edgemonitoringagent",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "main": "dist/index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc -p tsconfig.json",
-    "start": "node dist/index.js",
+    "start": "node --enable-source-maps dist/index.js",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "dockerode": "^4.0.2",
-    "dotenv": "^16.4.5",
-    "systeminformation": "^5.23.12",
-    "undici": "^7.2.1",
-    "zod": "^3.24.1"
+    "dockerode": "^4.0.10",
+    "dotenv": "^16.4.7",
+    "systeminformation": "^5.31.5",
+    "undici": "^8.1.0",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@types/dockerode": "^3.3.47",
     "@types/node": "^22.10.2",
-    "tsx": "^4.19.2",
-    "typescript": "^5.7.2"
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3"
   },
   "engines": {
-    "node": ">=20.11"
+    "node": ">=22"
   }
 }

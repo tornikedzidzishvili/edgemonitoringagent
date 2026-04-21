@@ -147,7 +147,12 @@ export async function collectSnapshot(dockerSocketPath: string): Promise<AgentPa
   let processesTopCpu: AgentPayload["system"]["processesTopCpu"] = undefined;
   let processesTopMem: AgentPayload["system"]["processesTopMem"] = undefined;
   try {
-    const procs = await si.processes();
+    const procs = await Promise.race([
+      si.processes(),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("processes timeout")), 10_000)
+      )
+    ]);
     const list = Array.isArray((procs as any)?.list) ? ((procs as any).list as any[]) : [];
     const normalized = list
       .map((p) => {
