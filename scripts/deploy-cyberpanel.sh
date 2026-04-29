@@ -239,7 +239,13 @@ LockPersonality=true
 RestrictNamespaces=true
 RestrictRealtime=true
 RestrictSUIDSGID=true
-MemoryDenyWriteExecute=true
+# MemoryDenyWriteExecute is intentionally NOT set: V8's baseline compiler
+# allocates writable JIT pages and flips them to executable via mprotect.
+# Setting MemoryDenyWriteExecute=true makes the kernel send SIGTRAP at the
+# W->X transition, crashing the agent inside v8::internal::Compiler::
+# CompileBaseline. The remaining hardening (NoNewPrivileges, ProtectSystem,
+# namespace + syscall filter + capability set drop) is sufficient defense
+# in depth for an outbound-only agent.
 RemoveIPC=true
 CapabilityBoundingSet=
 AmbientCapabilities=
