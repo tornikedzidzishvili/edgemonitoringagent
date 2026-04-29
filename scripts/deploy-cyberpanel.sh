@@ -230,8 +230,12 @@ ProtectKernelLogs=true
 ProtectControlGroups=true
 ProtectClock=true
 ProtectHostname=true
-ProtectProc=invisible
-ProcSubset=pid
+# ProtectProc and ProcSubset are intentionally NOT set: a system-monitoring
+# agent needs to read /proc/cpuinfo, /proc/meminfo, /proc/stat, /proc/loadavg
+# and enumerate other processes (for the top-CPU/RAM feature). The
+# `systeminformation` library opens /proc/cpuinfo synchronously at startup;
+# `ProcSubset=pid` makes that file invisible inside the unit's PID namespace,
+# crashing the agent with ENOENT before it can send any report.
 PrivateTmp=true
 PrivateDevices=true
 PrivateMounts=true
