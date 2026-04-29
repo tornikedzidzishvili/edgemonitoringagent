@@ -157,8 +157,13 @@ git checkout "$TAG"
 
 IMAGE_TAG="${IMAGE_NAME}:${TAG}"
 
-echo "Building image $IMAGE_TAG ..."
-docker build -t "$IMAGE_TAG" .
+# BuildKit is required: the Dockerfile uses `# syntax=docker/dockerfile:1.7`
+# and `RUN --mount=type=cache,...`. On Docker 23+ BuildKit is the default
+# (this is a no-op). On Docker 18.09–22.x the legacy builder is the default
+# and would reject `--mount` with: "the --mount option requires BuildKit".
+# Setting DOCKER_BUILDKIT=1 inline activates BuildKit for just this build.
+echo "Building image $IMAGE_TAG (BuildKit enabled) ..."
+DOCKER_BUILDKIT=1 docker build -t "$IMAGE_TAG" .
 
 # Discover the docker group gid on the host so we don't need --privileged or root in-container.
 DOCKER_GID="$(stat -c '%g' "$DOCKER_SOCK" 2>/dev/null || echo 0)"
